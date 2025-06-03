@@ -1,0 +1,258 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FM Synth Debug</title>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 20px;
+        }
+        .error { color: #ff4444; }
+        .success { color: #44ff44; }
+        .warning { color: #ffff44; }
+        button {
+            background: #003300;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #004400;
+        }
+        button:disabled {
+            background: #222;
+            color: #666;
+            cursor: not-allowed;
+        }
+        #output {
+            margin-top: 20px;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <h1>FM Synthesizer Debug Page</h1>
+    
+    <div class="section">
+        <h2>Status</h2>
+        <div id="status">Initializing...</div>
+        <div id="browser-info"></div>
+    </div>
+
+    <div class="section">
+        <h2>Quick Tests</h2>
+        <div id="controls" style="display: none;">
+            <button onclick="testSound()">Test Sound (C4)</button>
+            <button onclick="playDemo()">Play Demo</button>
+            <button onclick="listPresets()">List Presets</button>
+            <button onclick="listMelodies()">List Melodies</button>
+            <button onclick="playSpecific()">Play Bell + Twinkle</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Manual Test</h2>
+        <div id="manual-controls" style="display: none;">
+            <label>Preset: <select id="preset-select"></select></label>
+            <label>Melody: <select id="melody-select"></select></label>
+            <button onclick="playSelected()">Play Selected</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Debug Output</h2>
+        <pre id="output"></pre>
+    </div>
+
+    <script type="module">
+        import init, { WebFMSynth } from './pkg/fm_synth.js';
+        
+        let synth = null;
+        const status = document.getElementById('status');
+        const output = document.getElementById('output');
+        const controls = document.getElementById('controls');
+        const manualControls = document.getElementById('manual-controls');
+        const browserInfo = document.getElementById('browser-info');
+        
+        // Show browser info
+        browserInfo.innerHTML = `
+            Browser: ${navigator.userAgent.split(' ').slice(-2).join(' ')}<br>
+            Audio Context: ${typeof AudioContext !== 'undefined' ? 'Supported' : 'Not Supported'}
+        `;
+        
+        function log(msg, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${msg}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+            console.log(`[${type}] ${msg}`);
+        }
+        
+        window.clearLog = function() {
+            output.innerHTML = '';
+            log('Log cleared');
+        };
+        
+        window.testSound = async function() {
+            try {
+                log('Playing test sound (Bell preset, Chromatic scale)...');
+                await synth.play_melody(0, 4);
+                log('Test sound complete!', 'success');
+            } catch (e) {
+                log('Error playing sound: ' + e, 'error');
+                console.error(e);
+            }
+        };
+        
+        window.playDemo = async function() {
+            try {
+                log('Playing demo with different presets...');
+                const presetNames = ['Bell', 'Bass', 'Electric Piano'];
+                for (let i = 0; i < 3; i++) {
+                    log(`  Playing ${presetNames[i]}...`);
+                    await synth.play_melody(i, 5); // Major arpeggio
+                }
+                log('Demo complete!', 'success');
+            } catch (e) {
+                log('Error in demo: ' + e, 'error');
+                console.error(e);
+            }
+        };
+        
+        window.listPresets = function() {
+            try {
+                const presets = synth.list_presets();
+                log('Available Presets:\n' + presets, 'success');
+            } catch (e) {
+                log('Error listing presets: ' + e, 'error');
+                console.error(e);
+            }
+        };
+        
+        window.listMelodies = function() {
+            try {
+                const melodies = synth.list_melodies();
+                log('Available Melodies:\n' + melodies, 'success');
+            } catch (e) {
+                log('Error listing melodies: ' + e, 'error');
+                console.error(e);
+            }
+        };
+        
+        window.playSpecific = async function() {
+            try {
+                log('Playing Bell preset with Twinkle Twinkle melody...');
+                await synth.play_melody(0, 0); // Bell = 0, Twinkle = 0
+                log('Playback complete!', 'success');
+            } catch (e) {
+                log('Error playing specific combination: ' + e, 'error');
+                console.error(e);
+            }
+        };
+        
+        window.playSelected = async function() {
+            try {
+                const presetIdx = document.getElementById('preset-select').value;
+                const melodyIdx = document.getElementById('melody-select').value;
+                const presetName = document.getElementById('preset-select').options[presetIdx].text;
+                const melodyName = document.getElementById('melody-select').options[melodyIdx].text;
+                
+                log(`Playing ${presetName} with ${melodyName}...`);
+                await synth.play_melody(parseInt(presetIdx), parseInt(melodyIdx));
+                log('Playback complete!', 'success');
+            } catch (e) {
+                log('Error playing selected: ' + e, 'error');
+                console.error(e);
+            }
+        };
+        
+        async function initialize() {
+            try {
+                log('Checking WebAssembly support...');
+                if (typeof WebAssembly === 'undefined') {
+                    throw new Error('WebAssembly is not supported in this browser');
+                }
+                log('WebAssembly is supported', 'success');
+                
+                log('Loading WASM module...');
+                await init();
+                log('WASM module loaded successfully', 'success');
+                
+                log('Creating WebFMSynth instance...');
+                synth = new WebFMSynth();
+                log('WebFMSynth created successfully', 'success');
+                
+                // Populate dropdowns
+                const presets = synth.list_presets().split('\n');
+                const melodies = synth.list_melodies().split('\n');
+                
+                const presetSelect = document.getElementById('preset-select');
+                const melodySelect = document.getElementById('melody-select');
+                
+                presets.forEach((preset, i) => {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.text = preset.replace(/^\d+\.\s*/, '');
+                    presetSelect.add(option);
+                });
+                
+                melodies.forEach((melody, i) => {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.text = melody.replace(/^\d+\.\s*/, '');
+                    melodySelect.add(option);
+                });
+                
+                status.innerHTML = '<span class="success">✓ Ready! Click any button to test.</span>';
+                controls.style.display = 'block';
+                manualControls.style.display = 'block';
+                
+                log('Initialization complete!', 'success');
+                log('Click any button to test the synthesizer');
+                
+                // Test audio context state
+                const audioContext = new AudioContext();
+                log(`Audio Context State: ${audioContext.state}`, audioContext.state === 'running' ? 'success' : 'warning');
+                if (audioContext.state === 'suspended') {
+                    log('Audio Context is suspended. Click anywhere to activate audio.', 'warning');
+                }
+                
+            } catch (error) {
+                status.innerHTML = '<span class="error">✗ Failed to initialize</span>';
+                log('Initialization error: ' + error, 'error');
+                log('Error stack: ' + error.stack, 'error');
+                console.error(error);
+            }
+        }
+        
+        // Resume audio context on user interaction
+        document.addEventListener('click', async () => {
+            const audioContext = new AudioContext();
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+                log('Audio Context resumed', 'success');
+            }
+        }, { once: true });
+        
+        initialize();
+    </script>
+</body>
+</html>

@@ -257,16 +257,16 @@ impl WebFMSynth {
         
         // Create carrier oscillator
         let carrier = self.context.create_oscillator()?;
-        carrier.frequency().set_value(freq as f64);
+        carrier.frequency().set_value(freq);
         
         // Create modulator oscillator
         let modulator = self.context.create_oscillator()?;
         let freq_ratio = freq / 440.0;
-        modulator.frequency().set_value((preset.modulator_freq * freq_ratio) as f64);
+        modulator.frequency().set_value(preset.modulator_freq * freq_ratio);
         
         // Create modulation gain
         let mod_gain = self.context.create_gain()?;
-        mod_gain.gain().set_value((preset.modulation_index * freq) as f64);
+        mod_gain.gain().set_value(preset.modulation_index * freq);
         
         // Create output gain with envelope
         let output_gain = self.context.create_gain()?;
@@ -276,8 +276,8 @@ impl WebFMSynth {
         let duration_f64 = duration as f64;
         let amplitude_f64 = preset.amplitude as f64;
         gain_param.set_value_at_time(0.0, current_time)?;
-        gain_param.linear_ramp_to_value_at_time(amplitude_f64, current_time + 0.01)?;
-        gain_param.exponential_ramp_to_value_at_time(amplitude_f64 * 0.7, current_time + 0.1)?;
+        gain_param.linear_ramp_to_value_at_time(amplitude_f64 as f32, current_time + 0.01)?;
+        gain_param.exponential_ramp_to_value_at_time(amplitude_f64 as f32 * 0.7, current_time + 0.1)?;
         gain_param.linear_ramp_to_value_at_time(0.001, current_time + duration_f64)?;
         
         // Connect FM synthesis chain
